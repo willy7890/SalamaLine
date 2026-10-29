@@ -1,0 +1,9 @@
+[
+  { "code": "BUSOKELO", "nameSw": "Busokelo", "nameEn": "Busokelo", "region": "Mbeya" },
+  { "code": "CHUNYA", "nameSw": "Chunya", "nameEn": "Chunya", "region": "Mbeya" },
+  { "code": "KYELA", "nameSw": "Kyela", "nameEn": "Kyela", "region": "Mbeya" },
+  { "code": "MBARALI", "nameSw": "Mbarali", "nameEn": "Mbarali", "region": "Mbeya" },
+  { "code": "MBEYA_CITY", "nameSw": "Jiji la Mbeya", "nameEn": "Mbeya City", "region": "Mbeya" },
+  { "code": "MBEYA_RURAL", "nameSw": "Mbeya Vijijini", "nameEn": "Mbeya Rural", "region": "Mbeya" },
+  { "code": "RUNGWE", "nameSw": "Rungwe", "nameEn": "Rungwe", "region": "Mbeya" }
+]

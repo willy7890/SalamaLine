@@ -1,0 +1,274 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String        @id @default(cuid())
+  email           String        @unique
+  passwordHash    String
+  displayName     String
+  role            UserRole      @default(RESPONDER)
+  districtCode    String?
+  isActive        Boolean       @default(false)
+  phoneEnc        String?
+  phoneHash       String?       @unique
+  totpSecretEnc   String?
+  totpEnabledAt   DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  auditEvents     AuditEvent[]
+  authoredContent Content[]     @relation("ContentAuthor")
+  reviewedContent Content[]     @relation("ContentReviewer")
+  assignedCases   HelpRequest[] @relation("AssignedCases")
+}
+
+model Content {
+  id          String        @id @default(cuid())
+  slug        String        @unique
+  title       String
+  language    String        @default("sw")
+  topic       Topic
+  shortText   String
+  fullText    String
+  sourceName  String
+  sourceUrl   String?
+  status      ContentStatus @default(DRAFT)
+  authorId    String?
+  reviewerId  String?
+  reviewedAt  DateTime?
+  reviewNotes String?
+  reviewDueAt DateTime?
+  publishedAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  author      User?         @relation("ContentAuthor", fields: [authorId], references: [id])
+  reviewer    User?         @relation("ContentReviewer", fields: [reviewerId], references: [id])
+
+  @@index([status, language, topic])
+}
+
+model District {
+  code     String  @id
+  nameSw   String
+  nameEn   String
+  region   String
+  isActive Boolean @default(true)
+}
+
+model ServiceDirectoryEntry {
+  id              String      @id @default(cuid())
+  name            String
+  type            ServiceType
+  districtCode    String
+  region          String
+  phonePublic     String?
+  address         String?
+  openingHours    String?
+  languages       String[]    @default([])
+  verificationOrg String
+  verifiedBy      String
+  verifiedAt      DateTime
+  expiresAt       DateTime?
+  isActive        Boolean     @default(false)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([districtCode, type, isActive])
+}
+
+model HelpRequest {
+  id                  String              @id @default(cuid())
+  caseCode            String              @unique
+  idempotencyKey      String?             @unique
+  kind                HelpRequestKind     @default(SELF_HELP)
+  topic               Topic
+  districtCode        String
+  channel             Channel
+  status              HelpRequestStatus   @default(PENDING)
+  priority            HelpRequestPriority @default(NORMAL)
+  language            String              @default("sw")
+  consentToContact    Boolean             @default(false)
+  contactEnc          String?
+  contactHash         String?
+  contactWipedAt      DateTime?
+  assignedResponderId String?
+  createdAt           DateTime            @default(now())
+  acceptedAt          DateTime?
+  closedAt            DateTime?
+  lastAlertAt         DateTime?
+  escalationCount     Int                 @default(0)
+  escalatedAt         DateTime?
+  consents            ConsentRecord[]
+  assignedResponder   User?               @relation("AssignedCases", fields: [assignedResponderId], references: [id])
+  referrals           Referral[]
+
+  @@index([status, districtCode, priority, createdAt])
+  @@index([contactHash])
+}
+
+model Notification {
+  id            String           @id @default(uuid())
+  kind          NotificationKind
+  channel       Channel
+  status        String           @default("QUEUED")
+  recipientEnc  String?
+  recipientHash String?
+  body          String
+  helpRequestId String?
+  attempts      Int              @default(0)
+  nextAttemptAt DateTime         @default(now())
+  sentAt        DateTime?
+  lastError     String?
+  createdAt     DateTime         @default(now())
+
+  @@index([status, nextAttemptAt])
+  @@index([recipientHash, status])
+  @@index([helpRequestId, status])
+}
+
+model ProcessedWebhook {
+  id         String   @id @default(cuid())
+  provider   String
+  externalId String
+  createdAt  DateTime @default(now())
+
+  @@unique([provider, externalId])
+  @@index([createdAt])
+}
+
+model ConsentRecord {
+  id             String          @id @default(cuid())
+  helpRequestId  String
+  purpose        ConsentPurpose
+  decision       ConsentDecision
+  wordingVersion String
+  channel        Channel
+  createdAt      DateTime        @default(now())
+  helpRequest    HelpRequest     @relation(fields: [helpRequestId], references: [id], onDelete: Cascade)
+
+  @@index([helpRequestId, purpose, createdAt])
+}
+
+model Referral {
+  id             String      @id @default(cuid())
+  helpRequestId  String
+  serviceEntryId String?
+  status         String      @default("OFFERED")
+  consentGranted Boolean     @default(false)
+  createdAt      DateTime    @default(now())
+  helpRequest    HelpRequest @relation(fields: [helpRequestId], references: [id], onDelete: Cascade)
+
+  @@index([helpRequestId])
+}
+
+model AuditEvent {
+  id           String   @id @default(cuid())
+  actorUserId  String?
+  action       String
+  resourceType String
+  resourceId   String?
+  outcome      String
+  requestId    String?
+  createdAt    DateTime @default(now())
+  actor        User?    @relation(fields: [actorUserId], references: [id])
+
+  @@index([createdAt, action])
+  @@index([resourceType, resourceId])
+}
+
+model AnonymousMetric {
+  id           String   @id @default(cuid())
+  metricKey    String
+  districtCode String?
+  channel      Channel?
+  bucketDate   DateTime
+  count        Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  @@unique([metricKey, districtCode, channel, bucketDate])
+  @@index([metricKey, bucketDate])
+}
+
+enum UserRole {
+  ADMIN
+  RESPONDER
+  DISTRICT_FOCAL
+  CONTENT_REVIEWER
+  PARTNER_ANALYST
+}
+
+enum Topic {
+  CHILD_MARRIAGE
+  FGM
+  GBV
+  ONLINE_ABUSE
+  HEALTH
+  WELLBEING
+  OTHER
+}
+
+enum HelpRequestKind {
+  SELF_HELP
+  THIRD_PARTY_REPORT
+}
+
+enum HelpRequestStatus {
+  PENDING
+  ACCEPTED
+  IN_PROGRESS
+  REFERRED
+  CLOSED
+  CANCELLED
+}
+
+enum HelpRequestPriority {
+  NORMAL
+  URGENT
+}
+
+enum ConsentPurpose {
+  CONTACT_FOR_HELP
+  SHARE_WITH_SERVICE
+  FOLLOW_UP
+}
+
+enum ConsentDecision {
+  GRANTED
+  DECLINED
+  REVOKED
+}
+
+enum ContentStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  ARCHIVED
+}
+
+enum ServiceType {
+  CLINIC
+  LEGAL_AID
+  SOCIAL_WELFARE
+  SHELTER
+  COUNSELLING
+  OTHER
+}
+
+enum Channel {
+  WEB
+  USSD
+  SMS
+  WHATSAPP
+  STAFF
+}
+
+enum NotificationKind {
+  RESPONDER_ALERT
+  ESCALATION
+  USER_REPLY
+}
